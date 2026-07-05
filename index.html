@@ -247,17 +247,17 @@ async function submitReport(){
   };
 
   try{
-    const response = await fetch(GOOGLE_SHEET_URL, {
+    // mode:'no-cors', weil Google Apps Script per Redirect auf googleusercontent.com
+    // antwortet und der Browser diese Antwort aus CORS-Gründen oft nicht auslesen darf.
+    // Die Anfrage kommt trotzdem zuverlässig beim Script an und wird dort ausgeführt -
+    // wir können nur nicht mehr sehen, was die Antwort war (daher "optimistischer" Erfolg).
+    await fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // vermeidet CORS-Preflight bei Apps Script
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    const result = await response.json();
-    if(result.success){
-      goTo('screen-done');
-    } else {
-      toast('Senden fehlgeschlagen – bitte erneut versuchen');
-    }
+    goTo('screen-done');
   }catch(e){
     toast('Senden fehlgeschlagen – bitte Internetverbindung prüfen');
   }
@@ -282,3 +282,4 @@ function escapeHtml(s){
 </script>
 </body>
 </html>
+
