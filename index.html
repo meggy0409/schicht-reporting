@@ -205,9 +205,10 @@ function renderTaskScreen(){
 async function postToSheet(data){
   if(!GOOGLE_SHEET_URL) return;
   try{
-    // text/plain vermeidet einen CORS-Preflight; Apps Script liest den Inhalt trotzdem korrekt aus
+    // no-cors: wir können die Antwort nicht lesen, aber der Aufruf kommt zuverlässig bei Google an
     await fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(data)
     });
