@@ -58,23 +58,6 @@
 </head>
 <body>
 
-<!-- Hidden static form so Netlify detects the fields at deploy time. Not shown to users. -->
-<form name="schicht-report" data-netlify="true" netlify-honeypot="bot-field" hidden>
-  <input type="text" name="form-name" value="schicht-report">
-  <input type="text" name="bot-field">
-  <input type="text" name="employee">
-  <input type="text" name="date">
-  <input type="text" name="shift">
-  <input type="text" name="tasks_done">
-  <input type="text" name="tasks_total">
-  <input type="text" name="calls">
-  <input type="text" name="walkins">
-  <input type="text" name="contracts">
-  <input type="text" name="contacts">
-  <input type="text" name="extra_tasks">
-  <input type="text" name="notes">
-</form>
-
 <!-- STEP 1: NAME + SHIFT -->
 <div class="screen active" id="screen-name">
   <div class="topbar"><div class="brand"><div class="dot"></div><span>Schicht-Report</span></div></div>
@@ -83,10 +66,7 @@
     <div class="hero-sub">Wähle deinen Namen und deine Schicht.</div>
 
     <label>Name</label>
-    <select id="employeeSelect">
-      <option value="">Bitte wählen…</option>
-      <!-- EMPLOYEE_OPTIONS_PLACEHOLDER -->
-    </select>
+    <input type="text" id="employeeSelect" placeholder="Vor- und Nachname eingeben">
 
     <label>Datum</label>
     <input type="date" id="reportDate">
@@ -150,6 +130,11 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ==========================================================================
+// HIER DEN WEB3FORMS ACCESS KEY EINTRAGEN (von web3forms.com per E-Mail erhalten)
+// ==========================================================================
+const WEB3FORMS_ACCESS_KEY = "144dd5f5-24a4-4c39-b7e2-f05f64a4439a";
+
 // Aufgabenliste: hier bei Bedarf Zeilen hinzufügen/entfernen/ändern.
 // needsNote:true zeigt ein zusätzliches Textfeld an (z.B. "welche Geräte").
 const TASKS = [
@@ -158,12 +143,6 @@ const TASKS = [
   { label: "Bodyshake-Maschine gereinigt und aufgefüllt", needsNote: false },
   { label: "Tresenbereich aufgeräumt und gereinigt", needsNote: false },
   { label: "Gerätegruppe gereinigt", needsNote: true }
-];
-
-// Mitarbeiterliste: hier Namen eintragen/ändern.
-const EMPLOYEES = [
-  // "Anna Muster",
-  // "Max Beispiel"
 ];
 
 let completedTasks = {};
@@ -188,7 +167,7 @@ function goToTasks(){
 }
 
 function getEmployeeName(){
-  return document.getElementById('employeeSelect').value;
+  return document.getElementById('employeeSelect').value.trim();
 }
 
 function renderTaskScreen(){
@@ -220,40 +199,44 @@ function renderTaskScreen(){
   });
 }
 
-function encodeForm(data){
-  return Object.keys(data).map(k=> encodeURIComponent(k) + '=' + encodeURIComponent(data[k])).join('&');
-}
-
 async function submitReport(){
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.textContent = 'Wird gesendet…';
 
   const tasksDoneArr = Object.entries(completedTasks).map(([label, v])=> v.note ? `${label} (${v.note})` : label);
+  const employee = getEmployeeName();
 
   const payload = {
-    'form-name': 'schicht-report',
-    employee: getEmployeeName(),
-    date: document.getElementById('reportDate').value,
-    shift: selectedShift,
-    tasks_done: tasksDoneArr.join(' | ') || '—',
-    tasks_total: TASKS.length + ' Aufgaben insgesamt, ' + tasksDoneArr.length + ' erledigt',
-    calls: document.getElementById('mCalls').value || '0',
-    walkins: document.getElementById('mWalkins').value || '0',
-    contracts: document.getElementById('mContracts').value || '0',
-    contacts: document.getElementById('mContacts').value || '0',
-    extra_tasks: document.getElementById('mExtraTasks').value.trim() || '—',
-    notes: document.getElementById('mNotes').value.trim() || '—'
+    access_key: WEB3FORMS_ACCESS_KEY,
+    subject: `Neuer Schicht-Report – ${employee}`,
+    from_name: "Studio Schicht-Reporting",
+    Name: employee,
+    Datum: document.getElementById('reportDate').value,
+    Schicht: selectedShift,
+    "Aufgaben erledigt": tasksDoneArr.join(' | ') || '—',
+    "Aufgaben Anzahl": `${tasksDoneArr.length} von ${TASKS.length}`,
+    "Anrufe": document.getElementById('mCalls').value || '0',
+    "Walk-ins": document.getElementById('mWalkins').value || '0',
+    "Vertragsabschlüsse": document.getElementById('mContracts').value || '0',
+    "Proaktive Kontakte": document.getElementById('mContacts').value || '0',
+    "Zusätzlich erledigt": document.getElementById('mExtraTasks').value.trim() || '—',
+    "Schwierigkeiten": document.getElementById('mNotes').value.trim() || '—'
   };
 
   try{
-    await fetch('/', {
+    const response = await fetch('https://api.web3forms.com/submit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: encodeForm(payload)
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(payload)
     });
-    goTo('screen-done');
+    const result = await response.json();
+    if(result.success){
+      goTo('screen-done');
+    } else {
+      toast('Senden fehlgeschlagen – bitte erneut versuchen');
+    }
   }catch(e){
-    toast('Senden fehlgeschlagen – bitte erneut versuchen');
+    toast('Senden fehlgeschlagen – bitte Internetverbindung prüfen');
   }
   btn.disabled = false; btn.textContent = 'Report übermitteln';
 }
@@ -263,9 +246,6 @@ function escapeHtml(s){
 }
 
 (function init(){
-  const sel = document.getElementById('employeeSelect');
-  EMPLOYEES.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
-  const other = document.createElement('option'); other.value='Andere / nicht gelistet'; other.textContent='Andere / nicht gelistet'; sel.appendChild(other);
   document.getElementById('reportDate').value = new Date().toISOString().slice(0,10);
   document.querySelectorAll('.shift-btn').forEach(btn=>{
     btn.onclick = ()=>{
