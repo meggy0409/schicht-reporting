@@ -247,10 +247,6 @@ async function submitReport(){
   };
 
   try{
-    // mode:'no-cors', weil Google Apps Script per Redirect auf googleusercontent.com
-    // antwortet und der Browser diese Antwort aus CORS-Gründen oft nicht auslesen darf.
-    // Die Anfrage kommt trotzdem zuverlässig beim Script an und wird dort ausgeführt -
-    // wir können nur nicht mehr sehen, was die Antwort war (daher "optimistischer" Erfolg).
     await fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -259,7 +255,8 @@ async function submitReport(){
     });
     goTo('screen-done');
   }catch(e){
-    toast('Senden fehlgeschlagen – bitte Internetverbindung prüfen');
+    // Fehlertext direkt sichtbar machen (kein Entwicklertool nötig) - TEMPORÄR zum Debuggen
+    alert('Fehler beim Senden:\n\n' + e.name + ': ' + e.message + '\n\nURL: ' + GOOGLE_SHEET_URL);
   }
   btn.disabled = false; btn.textContent = 'Report übermitteln';
 }
@@ -282,4 +279,3 @@ function escapeHtml(s){
 </script>
 </body>
 </html>
-
