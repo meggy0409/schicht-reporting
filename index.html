@@ -54,6 +54,9 @@
   .confirm p{margin:0 0 30px; color:var(--ink-soft); font-size:15px; max-width:320px;}
   .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:12px 20px; border-radius:12px; font-size:14px; box-shadow:var(--shadow); z-index:50; opacity:0; pointer-events:none; transition:opacity .2s;}
   .toast.show{opacity:1;}
+  /* Honeypot: für Menschen unsichtbar & unerreichbar, aber im DOM vorhanden für Bots.
+     Kein display:none, da manche Bots das erkennen und das Feld dann trotzdem leer lassen. */
+  .hp-field{position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; overflow:hidden;}
 </style>
 </head>
 <body>
@@ -113,6 +116,12 @@
     <label>Schwierigkeiten oder Unklarheiten</label>
     <textarea id="mNotes" placeholder="z. B. Solarium defekt, Kunde beschwert sich über..."></textarea>
 
+    <!-- Honeypot-Feld: für echte Nutzer unsichtbar, Bots füllen es oft trotzdem aus -->
+    <div class="hp-field" aria-hidden="true">
+      <label for="website">Website</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+
     <button class="btn btn-primary" id="submitBtn" onclick="submitReport()">Report übermitteln</button>
   </main>
 </div>
@@ -131,12 +140,14 @@
 
 <script>
 // ==========================================================================
-// HIER DEN WEB3FORMS ACCESS KEY EINTRAGEN (von web3forms.com per E-Mail erhalten)
+// Google Apps Script Web-App URL (übernimmt Sheet-Eintrag UND Mailversand serverseitig)
 // ==========================================================================
-const WEB3FORMS_ACCESS_KEY = "144dd5f5-24a4-4c39-b7e2-f05f64a4439a";
-
-// Google Sheet Web-App URL - jeder Report wird zusätzlich als Zeile hier eingetragen
 const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbypto54_sTCwbEVzXNizIicAP3rx7VroL8rKL7yPTk7R8CF7EYyOjja8eetHxtSHNV_/exec";
+
+// Muss EXAKT mit SHARED_SECRET im Apps Script (Code.gs) übereinstimmen.
+// Dient nur dazu, zufällige/automatisierte Aufrufe der URL abzublocken -
+// kein echtes Geheimnis (ist im Quelltext sichtbar), aber wirksam gegen Bots/Scanner.
+const SHARED_SECRET = "WowMisteinfachgenial2004!KeinwunderbeidenEltern";
 
 // Aufgabenliste: hier bei Bedarf Zeilen hinzufügen/entfernen/ändern.
 // needsNote:true zeigt ein zusätzliches Textfeld an (z.B. "welche Geräte").
@@ -202,21 +213,6 @@ function renderTaskScreen(){
   });
 }
 
-async function postToSheet(data){
-  if(!GOOGLE_SHEET_URL) return;
-  try{
-    // no-cors: wir können die Antwort nicht lesen, aber der Aufruf kommt zuverlässig bei Google an
-    await fetch(GOOGLE_SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(data)
-    });
-  }catch(e){
-    // best effort - schlägt die Sheet-Zeile fehl, soll das die Übermittlung nicht blockieren
-  }
-}
-
 async function submitReport(){
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.textContent = 'Wird gesendet…';
@@ -232,26 +228,11 @@ async function submitReport(){
   const notes = document.getElementById('mNotes').value.trim() || '—';
   const tasksDoneText = tasksDoneArr.join(' | ') || '—';
   const tasksCountText = `${tasksDoneArr.length} von ${TASKS.length}`;
+  const honeypot = document.getElementById('website').value; // sollte bei Menschen immer leer sein
 
   const payload = {
-    access_key: WEB3FORMS_ACCESS_KEY,
-    subject: `Neuer Schicht-Report – ${employee}`,
-    from_name: "Studio Schicht-Reporting",
-    Name: employee,
-    Datum: reportDate,
-    Schicht: selectedShift,
-    "Aufgaben erledigt": tasksDoneText,
-    "Aufgaben Anzahl": tasksCountText,
-    "Anrufe": calls,
-    "Walk-ins": walkins,
-    "Vertragsabschlüsse": contracts,
-    "Proaktive Kontakte": contacts,
-    "Zusätzlich erledigt": extraTasks,
-    "Schwierigkeiten": notes
-  };
-
-  // Läuft parallel zur E-Mail-Übermittlung, blockiert diese nicht
-  postToSheet({
+    secret: SHARED_SECRET,
+    website: honeypot,
     employee: employee,
     date: reportDate,
     shift: selectedShift,
@@ -263,12 +244,12 @@ async function submitReport(){
     contacts: contacts,
     extraTasks: extraTasks,
     notes: notes
-  });
+  };
 
   try{
-    const response = await fetch('https://api.web3forms.com/submit', {
+    const response = await fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' }, // vermeidet CORS-Preflight bei Apps Script
       body: JSON.stringify(payload)
     });
     const result = await response.json();
