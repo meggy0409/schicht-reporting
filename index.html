@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Schicht-Reporting</title>
+<style>
+  :root{
+    --ink:#15171A; --ink-soft:#4B5157; --paper:#FBFAF8; --card:#FFFFFF; --line:#E7E4DE;
+    --accent:#FF5A1F; --accent-ink:#7A2A0A; --accent-soft:#FFE6DA;
+    --good:#1E8E5A; --good-soft:#E3F5EC; --radius:16px;
+    --shadow:0 1px 2px rgba(21,23,26,0.06), 0 8px 24px -12px rgba(21,23,26,0.18);
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; min-height:100vh; -webkit-tap-highlight-color:transparent;}
+  .screen{display:none; min-height:100vh; flex-direction:column;}
+  .screen.active{display:flex;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:18px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--paper); z-index:5;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800;}
+  .brand .dot{width:10px;height:10px;border-radius:3px;background:var(--accent);transform:rotate(45deg);}
+  .back{background:none;border:none;color:var(--ink-soft);font-size:14px;font-weight:600;padding:8px 4px;cursor:pointer;}
+  main{flex:1; padding:20px; max-width:640px; width:100%; margin:0 auto;}
+  .hero-title{font-size:26px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; margin:6px 0 4px;}
+  .hero-sub{color:var(--ink-soft); font-size:15px; margin-bottom:28px; line-height:1.5;}
+  label{display:block; font-size:13px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em; margin:22px 0 8px;}
+  label:first-of-type{margin-top:0;}
+  select, input[type=text], input[type=number], input[type=date], textarea{
+    width:100%; padding:13px 14px; border-radius:12px; border:1px solid var(--line); background:var(--card); font-size:16px; color:var(--ink); font-family:inherit;
+  }
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  textarea{resize:vertical; min-height:80px;}
+  .shift-row{display:flex; gap:8px;}
+  .shift-btn{flex:1; padding:12px 8px; border-radius:12px; border:1px solid var(--line); background:var(--card); font-size:14px; font-weight:600; cursor:pointer; text-align:center;}
+  .shift-btn.selected{border-color:var(--accent); background:var(--accent-soft); color:var(--accent-ink);}
+  .task-list{display:flex; flex-direction:column; gap:8px;}
+  .task-item{display:flex; flex-direction:column; gap:10px; padding:13px 14px; border-radius:12px; border:1px solid var(--line); background:var(--card);}
+  .task-item.done{border-color:var(--good); background:var(--good-soft);}
+  .task-item-head{display:flex; align-items:center; gap:12px; cursor:pointer;}
+  .task-check{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;background:#fff;}
+  .task-item.done .task-check{background:var(--good); border-color:var(--good);}
+  .task-item span.label{font-size:15px; font-weight:500;}
+  .task-note{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:14px; font-family:inherit;}
+  .num-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .num-grid label{margin:0 0 8px;}
+  .btn{display:block; width:100%; padding:15px; border-radius:12px; border:none; cursor:pointer; font-size:16px; font-weight:700; font-family:inherit; text-align:center;}
+  .btn-primary{background:var(--ink); color:#fff; margin-top:28px;}
+  .btn-primary:disabled{background:#C9C5BE; cursor:not-allowed;}
+  .btn-accent{background:var(--accent); color:#fff;}
+  .confirm{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 24px;}
+  .confirm .badge{width:64px;height:64px;border-radius:18px;background:var(--good-soft);color:var(--good);display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:20px;}
+  .confirm h2{margin:0 0 8px; font-size:22px; font-weight:800;}
+  .confirm p{margin:0 0 30px; color:var(--ink-soft); font-size:15px; max-width:320px;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:12px 20px; border-radius:12px; font-size:14px; box-shadow:var(--shadow); z-index:50; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- Hidden static form so Netlify detects the fields at deploy time. Not shown to users. -->
+<form name="schicht-report" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input type="text" name="form-name" value="schicht-report">
+  <input type="text" name="bot-field">
+  <input type="text" name="employee">
+  <input type="text" name="date">
+  <input type="text" name="shift">
+  <input type="text" name="tasks_done">
+  <input type="text" name="tasks_total">
+  <input type="text" name="calls">
+  <input type="text" name="walkins">
+  <input type="text" name="contracts">
+  <input type="text" name="contacts">
+  <input type="text" name="extra_tasks">
+  <input type="text" name="notes">
+</form>
+
+<!-- STEP 1: NAME + SHIFT -->
+<div class="screen active" id="screen-name">
+  <div class="topbar"><div class="brand"><div class="dot"></div><span>Schicht-Report</span></div></div>
+  <main>
+    <div class="hero-title">Wer bist du?</div>
+    <div class="hero-sub">Wähle deinen Namen und deine Schicht.</div>
+
+    <label>Name</label>
+    <select id="employeeSelect">
+      <option value="">Bitte wählen…</option>
+      <!-- EMPLOYEE_OPTIONS_PLACEHOLDER -->
+    </select>
+
+    <label>Datum</label>
+    <input type="date" id="reportDate">
+
+    <label>Schicht</label>
+    <div class="shift-row" id="shiftRow">
+      <div class="shift-btn" data-val="Früh">Früh</div>
+      <div class="shift-btn" data-val="Spät">Spät</div>
+      <div class="shift-btn" data-val="Ganztags">Ganztags</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goToTasks()">Weiter</button>
+  </main>
+</div>
+
+<!-- STEP 2: TASKS -->
+<div class="screen" id="screen-tasks">
+  <div class="topbar"><button class="back" onclick="goTo('screen-name')">← Zurück</button></div>
+  <main>
+    <div class="hero-title">Aufgaben der Schicht</div>
+    <div class="hero-sub">Tippe alles an, was erledigt wurde.</div>
+    <div class="task-list" id="taskList"></div>
+    <button class="btn btn-primary" onclick="goTo('screen-metrics')">Weiter</button>
+  </main>
+</div>
+
+<!-- STEP 3: METRICS -->
+<div class="screen" id="screen-metrics">
+  <div class="topbar"><button class="back" onclick="goTo('screen-tasks')">← Zurück</button></div>
+  <main>
+    <div class="hero-title">Deine Zahlen heute</div>
+    <div class="hero-sub">Kurz eintragen – dauert nur eine Minute.</div>
+
+    <div class="num-grid">
+      <div><label>Anrufe (Leadmanagement)</label><input type="number" id="mCalls" min="0" value="0"></div>
+      <div><label>Walk-ins</label><input type="number" id="mWalkins" min="0" value="0"></div>
+      <div><label>Vertragsabschlüsse</label><input type="number" id="mContracts" min="0" value="0"></div>
+      <div><label>Proaktive Mitgliederkontakte</label><input type="number" id="mContacts" min="0" value="0"></div>
+    </div>
+
+    <label>Zusätzlich erledigte Aufgaben</label>
+    <textarea id="mExtraTasks" placeholder="Was hast du sonst noch gemacht?"></textarea>
+
+    <label>Schwierigkeiten oder Unklarheiten</label>
+    <textarea id="mNotes" placeholder="z. B. Solarium defekt, Kunde beschwert sich über..."></textarea>
+
+    <button class="btn btn-primary" id="submitBtn" onclick="submitReport()">Report übermitteln</button>
+  </main>
+</div>
+
+<!-- DONE -->
+<div class="screen" id="screen-done">
+  <div class="confirm">
+    <div class="badge">✓</div>
+    <h2>Danke!</h2>
+    <p>Dein Schicht-Report wurde übermittelt.</p>
+    <button class="btn btn-accent" style="max-width:260px;" onclick="location.reload()">Neuen Report starten</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Aufgabenliste: hier bei Bedarf Zeilen hinzufügen/entfernen/ändern.
+// needsNote:true zeigt ein zusätzliches Textfeld an (z.B. "welche Geräte").
+const TASKS = [
+  { label: "Toiletten kontrolliert (Papier & Seife aufgefüllt)", needsNote: false },
+  { label: "Theke: Oberflächen gereinigt, Sirup kontrolliert/aufgefüllt", needsNote: false },
+  { label: "Bodyshake-Maschine gereinigt und aufgefüllt", needsNote: false },
+  { label: "Tresenbereich aufgeräumt und gereinigt", needsNote: false },
+  { label: "Gerätegruppe gereinigt", needsNote: true }
+];
+
+// Mitarbeiterliste: hier Namen eintragen/ändern.
+const EMPLOYEES = [
+  // "Anna Muster",
+  // "Max Beispiel"
+];
+
+let completedTasks = {};
+let selectedShift = null;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goToTasks(){
+  if(!getEmployeeName()){ toast('Bitte Namen wählen'); return; }
+  if(!selectedShift){ toast('Bitte Schicht wählen'); return; }
+  goTo('screen-tasks');
+}
+
+function getEmployeeName(){
+  return document.getElementById('employeeSelect').value;
+}
+
+function renderTaskScreen(){
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  TASKS.forEach(t=>{
+    const state = completedTasks[t.label];
+    const item = document.createElement('div');
+    item.className = 'task-item' + (state ? ' done' : '');
+    const head = document.createElement('div');
+    head.className = 'task-item-head';
+    head.innerHTML = `<div class="task-check">${state?'✓':''}</div><span class="label">${escapeHtml(t.label)}</span>`;
+    head.onclick = ()=>{
+      if(completedTasks[t.label]) delete completedTasks[t.label];
+      else completedTasks[t.label] = { note:'' };
+      renderTaskScreen();
+    };
+    item.appendChild(head);
+    if(state && t.needsNote){
+      const note = document.createElement('input');
+      note.type = 'text';
+      note.className = 'task-note';
+      note.placeholder = 'Welche? (kurz eintragen)';
+      note.value = state.note || '';
+      note.oninput = ()=>{ completedTasks[t.label].note = note.value; };
+      item.appendChild(note);
+    }
+    list.appendChild(item);
+  });
+}
+
+function encodeForm(data){
+  return Object.keys(data).map(k=> encodeURIComponent(k) + '=' + encodeURIComponent(data[k])).join('&');
+}
+
+async function submitReport(){
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'Wird gesendet…';
+
+  const tasksDoneArr = Object.entries(completedTasks).map(([label, v])=> v.note ? `${label} (${v.note})` : label);
+
+  const payload = {
+    'form-name': 'schicht-report',
+    employee: getEmployeeName(),
+    date: document.getElementById('reportDate').value,
+    shift: selectedShift,
+    tasks_done: tasksDoneArr.join(' | ') || '—',
+    tasks_total: TASKS.length + ' Aufgaben insgesamt, ' + tasksDoneArr.length + ' erledigt',
+    calls: document.getElementById('mCalls').value || '0',
+    walkins: document.getElementById('mWalkins').value || '0',
+    contracts: document.getElementById('mContracts').value || '0',
+    contacts: document.getElementById('mContacts').value || '0',
+    extra_tasks: document.getElementById('mExtraTasks').value.trim() || '—',
+    notes: document.getElementById('mNotes').value.trim() || '—'
+  };
+
+  try{
+    await fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: encodeForm(payload)
+    });
+    goTo('screen-done');
+  }catch(e){
+    toast('Senden fehlgeschlagen – bitte erneut versuchen');
+  }
+  btn.disabled = false; btn.textContent = 'Report übermitteln';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+(function init(){
+  const sel = document.getElementById('employeeSelect');
+  EMPLOYEES.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+  const other = document.createElement('option'); other.value='Andere / nicht gelistet'; other.textContent='Andere / nicht gelistet'; sel.appendChild(other);
+  document.getElementById('reportDate').value = new Date().toISOString().slice(0,10);
+  document.querySelectorAll('.shift-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      document.querySelectorAll('.shift-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedShift = btn.dataset.val;
+    };
+  });
+  renderTaskScreen();
+})();
+</script>
+</body>
+</html>
