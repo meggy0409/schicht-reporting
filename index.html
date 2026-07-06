@@ -150,13 +150,19 @@ const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbypto54_sTCwbE
 const SHARED_SECRET = "WowMisteinfachgenial2004!KeinwunderbeidenEltern";
 
 // Aufgabenliste: hier bei Bedarf Zeilen hinzufügen/entfernen/ändern.
-// needsNote:true zeigt ein zusätzliches Textfeld an (z.B. "welche Geräte").
+// WICHTIG: Die Reihenfolge hier bestimmt die Spaltenreihenfolge im Google Sheet.
+// Wird die Reihenfolge geändert, müssen auch die Spaltenüberschriften im Sheet angepasst werden.
+// needsNote:true zeigt ein zusätzliches Textfeld an und erzeugt eine zusätzliche Spalte dafür.
 const TASKS = [
   { label: "Toiletten kontrolliert (Papier & Seife aufgefüllt)", needsNote: false },
   { label: "Theke: Oberflächen gereinigt, Sirup kontrolliert/aufgefüllt", needsNote: false },
   { label: "Bodyshake-Maschine gereinigt und aufgefüllt", needsNote: false },
   { label: "Tresenbereich aufgeräumt und gereinigt", needsNote: false },
-  { label: "Gerätegruppe gereinigt", needsNote: true }
+  { label: "Gerätegruppe gereinigt", needsNote: true, notePlaceholder: "Welche? (kurz eintragen)" },
+  { label: "Cardio-Geräte alkalisch gereinigt (täglich morgens)", needsNote: false },
+  { label: "Kaffeemaschine gereinigt (abends)", needsNote: false },
+  { label: "Polster/Geräte auf Schäden kontrolliert", needsNote: true, notePlaceholder: "Falls defekt: Bezeichnung, Seriennummer, Hersteller, was ist defekt" },
+  { label: "Solarien kontrolliert, gereinigt, Tücher aufgefüllt (morgens und abends)", needsNote: false }
 ];
 
 let completedTasks = {};
@@ -204,7 +210,7 @@ function renderTaskScreen(){
       const note = document.createElement('input');
       note.type = 'text';
       note.className = 'task-note';
-      note.placeholder = 'Welche? (kurz eintragen)';
+      note.placeholder = t.notePlaceholder || 'Kurz eintragen';
       note.value = state.note || '';
       note.oninput = ()=>{ completedTasks[t.label].note = note.value; };
       item.appendChild(note);
@@ -217,7 +223,6 @@ async function submitReport(){
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.textContent = 'Wird gesendet…';
 
-  const tasksDoneArr = Object.entries(completedTasks).map(([label, v])=> v.note ? `${label} (${v.note})` : label);
   const employee = getEmployeeName();
   const reportDate = document.getElementById('reportDate').value;
   const calls = document.getElementById('mCalls').value || '0';
@@ -226,9 +231,24 @@ async function submitReport(){
   const contacts = document.getElementById('mContacts').value || '0';
   const extraTasks = document.getElementById('mExtraTasks').value.trim() || '—';
   const notes = document.getElementById('mNotes').value.trim() || '—';
-  const tasksDoneText = tasksDoneArr.join(' | ') || '—';
-  const tasksCountText = `${tasksDoneArr.length} von ${TASKS.length}`;
   const honeypot = document.getElementById('website').value; // sollte bei Menschen immer leer sein
+
+  // Pro Aufgabe: eine "Ja"/"Nein"-Spalte, plus bei needsNote zusätzlich eine Notiz-Spalte.
+  // Reihenfolge entspricht exakt der Reihenfolge in TASKS - wichtig für die Sheet-Spalten.
+  const taskColumns = [];
+  // Für die Mail: lesbare Zusammenfassung (✔/✘ pro Aufgabe)
+  const tasksSummaryLines = [];
+  TASKS.forEach(t => {
+    const state = completedTasks[t.label];
+    const done = !!state;
+    taskColumns.push(done ? 'Ja' : 'Nein');
+    if (t.needsNote) {
+      taskColumns.push(done && state.note ? state.note : '');
+    }
+    tasksSummaryLines.push((done ? '✔ ' : '✘ ') + t.label + (done && state.note ? ` (${state.note})` : ''));
+  });
+  const doneCount = Object.keys(completedTasks).length;
+  const tasksCountText = `${doneCount} von ${TASKS.length}`;
 
   const payload = {
     secret: SHARED_SECRET,
@@ -236,7 +256,8 @@ async function submitReport(){
     employee: employee,
     date: reportDate,
     shift: selectedShift,
-    tasksDone: tasksDoneText,
+    taskColumns: taskColumns,
+    tasksSummary: tasksSummaryLines.join('\n'),
     tasksCount: tasksCountText,
     calls: calls,
     walkins: walkins,
